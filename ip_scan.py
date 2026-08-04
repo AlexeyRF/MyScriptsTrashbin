@@ -35,12 +35,11 @@ def get_active_adapters():
 def calculate_network_address(ip, netmask):
     try:
         network = ipaddress.IPv4Network(f"{ip}/{netmask}", strict=False)
-        hosts = list(network.hosts())
         return {
             'network': str(network.network_address),
             'broadcast': str(network.broadcast_address),
             'total_hosts': network.num_addresses - 2,
-            'all_hosts': [str(host) for host in hosts]
+            'network_obj': network
         }
     except Exception as e:
         print(f"Ошибка расчета сети для {ip}/{netmask}: {e}")
@@ -93,7 +92,7 @@ def get_additional_info(ip):
     }
 def get_vendor_by_ip(ip):
     return "Не определено"
-def scan_adapter_network(adapter, scan_large_networks=True):
+def scan_adapter_network(adapter, scan_large_networks=True, timeout=1.0):
     print(f"\n{'-'*60}")
     print(f"Обработка адаптера: {adapter['interface']}")
     print(f"IP: {adapter['ip']}, Маска: {adapter['netmask']}")
@@ -112,8 +111,10 @@ def scan_adapter_network(adapter, scan_large_networks=True):
     if network_info['total_hosts'] == 0:
         print("Нет доступных хостов для сканирования")
         return None
+    
+    all_hosts = [str(host) for host in network_info['network_obj'].hosts()]
     max_workers = min(100, max(10, network_info['total_hosts'] // 10))
-    responsive_ips = parallel_ping_scan(network_info['all_hosts'], max_workers)
+    responsive_ips = parallel_ping_scan(all_hosts, max_workers, timeout)
     return {
         'adapter_info': adapter,
         'network_info': network_info,
@@ -231,7 +232,7 @@ def main():
     print("-" * 60)
     all_results = []
     for adapter in adapters:
-        result = scan_adapter_network(adapter, scan_large)
+        result = scan_adapter_network(adapter, scan_large, timeout)
         if result:
             all_results.append(result)
     if all_results:
